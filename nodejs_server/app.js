@@ -16,6 +16,7 @@ io.on('connection', (socket) => {
 
   socket.on('audioCast', (data) => {
     console.log(data);
+    socket.broadcast.emit('audioCast', data)
   })
 });
 

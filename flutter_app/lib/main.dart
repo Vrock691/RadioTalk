@@ -1,6 +1,9 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:radiotalk/style.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:record/record.dart';
 
 void main() {
   runApp(const MainApp());
@@ -30,8 +33,9 @@ class _AppState extends State<App> {
   bool speaking = false;
   late IO.Socket socket;
   bool connected = false;
-  String channel = "0";
-  List<String> status = ["Démarrage"];
+  String channel = "général";
+  List<String> status = ["Connexion à la radio"];
+  AudioRecorder record = AudioRecorder();
 
   @override
   void initState() {
@@ -43,28 +47,32 @@ class _AppState extends State<App> {
 
     socket.onConnect((_) {
       setState(() {
+        status.insert(0, 'Connecté au canal $channel');
+        connected = true;
         print('Connected to server');
-        status.add('Connecté au canal $channel');
       });
     });
 
     socket.onDisconnect((_) {
       setState(() {
-        status.add('Déconnecté');
+        status.insert(0, 'Déconnecté');
+        connected = false;
         print('Connection Disconnection');
       });
     });
 
     socket.onConnectError((err) {
       setState(() {
-        status.add('Erreur de connexion');
+        status.insert(0, 'Erreur de connexion');
+        connected = false;
         print('Connection Disconnection, $err');
       });
     });
 
     socket.onError((err) {
       setState(() {
-        status.add('Erreur de connexion');
+        status.insert(0, 'Erreur de connexion');
+        connected = false;
         print('Connection Disconnection, $err');
       });
     });
@@ -77,12 +85,27 @@ class _AppState extends State<App> {
   @override
   void dispose() {
     socket.disconnect();
+    record.dispose();
     super.dispose();
   }
 
   void sendAudio(String message) {
     print("message");
     socket.emit('audioCast', message);
+  }
+
+  void startRecording() async {
+    if (await record.hasPermission()) {
+      await record.start(const RecordConfig(encoder: AudioEncoder.wav),
+          path: './lib/myFile.wav');
+      print(record);
+    }
+  }
+
+  void stopRecording() async {
+    final path = await record.stop();
+    print(path);
+    await record.cancel();
   }
 
   @override
@@ -101,7 +124,7 @@ class _AppState extends State<App> {
           Expanded(
               child: Center(
             child: Text(
-              speaking ? "PARLEZ" : "Connecté au canal 800",
+              speaking ? "PARLEZ" : status[0],
               style: TextStyle(color: yellow, fontSize: speaking ? 25 : 15),
             ),
           )),
@@ -109,24 +132,33 @@ class _AppState extends State<App> {
             child: Center(
               child: GestureDetector(
                 onLongPressStart: (details) {
-                  setState(() {
-                    speaking = true;
-                  });
+                  if (connected) {
+                    setState(() {
+                      speaking = true;
+                      startRecording();
+                    });
+                  }
                 },
                 onLongPressEnd: (details) {
-                  setState(() {
-                    speaking = false;
-                    sendAudio("message");
-                  });
+                  if (connected) {
+                    setState(() {
+                      speaking = false;
+                      sendAudio("message");
+                      stopRecording();
+                    });
+                  }
                 },
                 child: AnimatedContainer(
                   curve: Curves.bounceInOut,
                   duration: const Duration(milliseconds: 100),
-                  width: speaking ? 200 : 150,
-                  height: speaking ? 200 : 150,
+                  width: (speaking && connected) ? 200 : 150,
+                  height: (speaking && connected) ? 200 : 150,
                   decoration: BoxDecoration(
-                      color: yellow, borderRadius: BorderRadius.circular(360)),
-                  child: const Icon(Icons.mic),
+                      color: connected ? yellow : Colors.transparent,
+                      borderRadius: BorderRadius.circular(360)),
+                  child: connected
+                      ? const Icon(Icons.mic, color: Colors.black)
+                      : CircularProgressIndicator(color: yellow),
                 ),
               ),
             ),
