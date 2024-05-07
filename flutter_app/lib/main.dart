@@ -52,7 +52,7 @@ class _AppState extends State<App> {
   void initState() {
     super.initState();
 
-    socket = IO.io("http://mercure.projectheberg.com:20211", <String, dynamic>{
+    socket = IO.io("https://rt.vld-group.com", <String, dynamic>{
       'transports': ['websocket'],
     });
 
@@ -84,7 +84,7 @@ class _AppState extends State<App> {
       setState(() {
         status.insert(0, 'Erreur de connexion');
         connected = false;
-        print('Connection Disconnection, $err');  
+        print('Connection Disconnection, $err');
       });
     });
 
