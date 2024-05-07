@@ -12,6 +12,7 @@ dependencies:
   firebase_storage: ^11.7.4
   flutter:
     sdk: flutter
+  just_audio: ^0.9.37
   record: ^5.0.5
   socket_io_client: ^2.0.3+1
 

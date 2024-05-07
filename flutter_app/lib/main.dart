@@ -9,7 +9,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:radiotalk/style.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:record/record.dart';
-import 'package:audioplayers/audioplayers.dart';
+import 'package:just_audio/just_audio.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,8 +24,10 @@ class MainApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
-      home: App(),
+    return MaterialApp(
+      home: const App(),
+      color: yellow,
+      theme: ThemeData.dark(),
     );
   }
 }
@@ -47,6 +49,8 @@ class _AppState extends State<App> {
   List<String> status = ["Connexion à la radio"];
   AudioRecorder record = AudioRecorder();
   final storage = FirebaseStorage.instance.ref();
+  TextEditingController controller = TextEditingController();
+  bool webActivation = false;
 
   @override
   void initState() {
@@ -90,8 +94,17 @@ class _AppState extends State<App> {
 
     socket.on('audioCast', (data) async {
       if (data["channel"] == channel && data['url'] != null) {
-        final player = AudioPlayer();
-        await player.play(UrlSource(data["url"]));
+        if (kIsWeb) {
+          if (webActivation) {
+            final player = AudioPlayer();
+            await player.setUrl(data['url']);
+            player.play();
+          }
+        } else {
+          final player = AudioPlayer();
+          await player.setUrl(data['url']);
+          player.play();
+        }
       }
     });
   }
@@ -178,6 +191,7 @@ class _AppState extends State<App> {
             child: Center(
               child: GestureDetector(
                 onLongPressStart: (details) {
+                  webActivation = true;
                   if (connected) {
                     setState(() {
                       speaking = true;
@@ -208,6 +222,17 @@ class _AppState extends State<App> {
               ),
             ),
           ),
+          if (kIsWeb && !webActivation)
+            ElevatedButton(
+                onPressed: () {
+                  setState(() {
+                    webActivation = true;
+                  });
+                },
+                child: Text(
+                  "Activer le son",
+                  style: TextStyle(color: yellow),
+                )),
           Expanded(
               child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -216,11 +241,87 @@ class _AppState extends State<App> {
               Wrap(
                 children: [
                   IconButton(
-                      onPressed: () {},
+                      onPressed: () {
+                        setState(() {
+                          controller.text = channel;
+                        });
+                        showModalBottomSheet(
+                            backgroundColor: background,
+                            context: context,
+                            builder: (context) {
+                              return Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
+                                    const SizedBox(height: 25),
+                                    const Text(
+                                      "Changer de canal",
+                                      style: TextStyle(color: Colors.white),
+                                    ),
+                                    Expanded(child: Container()),
+                                    SizedBox(
+                                      width: 90,
+                                      child: TextField(
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(
+                                            fontSize: 25, color: Colors.white),
+                                        controller: controller,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    OutlinedButton(
+                                        onPressed: () {
+                                          setState(() {
+                                            controller.text = "général";
+                                          });
+                                        },
+                                        child: const Text(
+                                          "général",
+                                          style: TextStyle(color: Colors.white),
+                                        )),
+                                    Expanded(child: Container()),
+                                    ElevatedButton(
+                                        onPressed: () {
+                                          setState(() {
+                                            webActivation = true;
+                                            if (controller.text != "") {
+                                              channel = controller.text;
+                                              status.insert(0,
+                                                  'Connecté au canal $channel');
+                                            }
+                                          });
+                                          Navigator.pop(context);
+                                        },
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(10.0),
+                                          child: Text(
+                                            "Changer de canal",
+                                            style: TextStyle(color: yellow),
+                                          ),
+                                        )),
+                                    const SizedBox(height: 25)
+                                  ],
+                                ),
+                              );
+                            });
+                      },
                       icon: Icon(
                         Icons.numbers,
                         color: yellow,
                       )),
+                  IconButton(
+                      onPressed: () => showAboutDialog(
+                          context: context,
+                          applicationName: "RadioTalk",
+                          applicationVersion: "1.0",
+                          applicationLegalese:
+                              "Merci d'avoir installé cette appliation.\nCode source sur le profil github de Vrock691"),
+                      icon: Icon(
+                        Icons.info,
+                        color: yellow,
+                      ))
                 ],
               )
             ],
