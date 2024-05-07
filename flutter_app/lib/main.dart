@@ -1,16 +1,15 @@
 import 'dart:io';
-import 'dart:typed_data';
-import 'dart:html' as html;
+
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/services.dart';
 import 'firebase_options.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:radiotalk/style.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:record/record.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -53,7 +52,7 @@ class _AppState extends State<App> {
   void initState() {
     super.initState();
 
-    socket = IO.io("http://localhost:3000", <String, dynamic>{
+    socket = IO.io("http://mercure.projectheberg.com:20211", <String, dynamic>{
       'transports': ['websocket'],
     });
 
@@ -85,12 +84,15 @@ class _AppState extends State<App> {
       setState(() {
         status.insert(0, 'Erreur de connexion');
         connected = false;
-        print('Connection Disconnection, $err');
+        print('Connection Disconnection, $err');  
       });
     });
 
-    socket.on('audioCast', (data) {
-      print(data);
+    socket.on('audioCast', (data) async {
+      if (data["channel"] == channel && data['url'] != null) {
+        final player = AudioPlayer();
+        await player.play(UrlSource(data["url"]));
+      }
     });
   }
 
@@ -101,51 +103,54 @@ class _AppState extends State<App> {
     super.dispose();
   }
 
-  void sendAudio(String message) {
-    print("message");
-    socket.emit('audioCast', message);
+  void sendAudio(String downloadURL) {
+    socket.emit('audioCast', {
+      "channel": channel,
+      "url": downloadURL,
+    });
   }
 
   void startRecording() async {
     if (await record.hasPermission()) {
       await record.start(const RecordConfig(encoder: AudioEncoder.wav),
           path: './lib/myFile.wav');
-      print(record);
     }
   }
 
   void stopRecording() async {
     final path = await record.stop();
-    print(path);
 
     if (kIsWeb) {
-      print('web');
       final blobFilePath = path;
       if (blobFilePath != null) {
         final uri = Uri.parse(blobFilePath);
-        print(uri);
         final client = http.Client();
         final request = await client.get(uri);
-        print(request);
         final bytes = request.bodyBytes;
-        print('response bytes.length: ${bytes.length}');
+        final newref =
+            'audios/$channel/${DateTime.now().toIso8601String()}.wav';
+        try {
+          await storage.child(newref).putData(bytes);
+        } catch (e) {
+          status.insert(0, e.toString());
+        }
+        final url = await storage.child(newref).getDownloadURL();
+        sendAudio(url);
+      }
+    } else {
+      if (path != null) {
+        final newref =
+            'audios/$channel/${DateTime.now().toIso8601String()}.wav';
+        try {
+          await storage.child(newref).putFile(File(path));
+        } catch (e) {
+          status.insert(0, e.toString());
+        }
+        final url = await storage.child(newref).getDownloadURL();
+        sendAudio(url);
       }
     }
 
-    /* if (path != null) {
-      print('upload');
-      try {
-        Uint8List bytes = (await NetworkAssetBundle(Uri.parse(path)).load(path))
-            .buffer
-            .asUint8List();
-        final upload =
-            await storage.child('audios/actualAudio.wav').putData(bytes);
-        print(upload.toString());
-      } catch (e) {
-        status.insert(0, e.toString());
-        print(e.toString());
-      }
-    } */
     await record.cancel();
   }
 

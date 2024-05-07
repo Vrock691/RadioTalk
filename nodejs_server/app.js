@@ -4,8 +4,14 @@ const { join } = require('node:path');
 const { Server } = require('socket.io');
 
 const app = express();
+const cors = require('cors')
 const server = createServer(app);
 const io = new Server(server);
+
+app.use(cors())
+app.get('/', (req, res) => {
+  res.json({working: true});
+})
 
 io.on('connection', (socket) => {
   console.log('a user connected');
