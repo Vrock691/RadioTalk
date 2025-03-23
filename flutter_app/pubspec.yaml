@@ -7,8 +7,13 @@ environment:
   sdk: '>=3.3.3 <4.0.0'
 
 dependencies:
+  audioplayers: ^6.0.0
+  firebase_core: ^2.30.1
+  firebase_storage: ^11.7.4
   flutter:
     sdk: flutter
+  just_audio: ^0.9.37
+  record: ^5.0.5
   socket_io_client: ^2.0.3+1
 
 dev_dependencies:
